@@ -40,7 +40,11 @@ def check_census() -> bool:
         params["key"] = key
     resp = requests.get(url, params=params, timeout=TIMEOUT)
     resp.raise_for_status()
-    rows = resp.json()
+    try:
+        rows = resp.json()
+    except ValueError:
+        print(f"[Census] FAIL  response is not JSON. First 200 chars: {resp.text[:200]!r}")
+        return False
     header, data = rows[0], rows[1:]
     print(f"[Census] OK  columns: {header}")
     print(f"         Texas counties returned: {len(data)}; first: {data[0]}")
@@ -64,7 +68,13 @@ def check_noaa() -> bool:
 
 def main() -> int:
     results = {}
-    for name, fn in [("FEMA", check_fema), ("Census", check_census), ("NOAA", check_noaa)]:
+    checks = [("FEMA", check_fema), ("NOAA", check_noaa)]
+    if os.getenv("CENSUS_API_KEY"):
+        checks.append(("Census", check_census))
+    else:
+        print("[Census] SKIPPED  no CENSUS_API_KEY set")
+
+    for name, fn in checks:
         try:
             results[name] = fn()
         except requests.RequestException as exc:
